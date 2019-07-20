@@ -5,36 +5,42 @@ import statsmodels.api as sm
 from sklearn.metrics import mean_squared_error
 from math import sqrt
 from pandas.plotting import register_matplotlib_converters
+
 register_matplotlib_converters()
 
 # 1.读取csv格式数据
 df = pd.read_csv('../raw_data/OTS_data_count/ccgp_country_ctime_2019_count.csv')
-
+df = df[40225:103221]
 
 # 2.将数据索引改为日期形式
 df['Date'] = pd.to_datetime(df['Date'])
 df.set_index("Date", inplace=True)
+df.sort_index()
 
 # 3.按照一定频率重新采样(采样的时候会补全数据，缺失值补为0)
-df = df.resample('d', closed='left').sum()
+df = df.resample('h', closed='left').sum()
 
 # 4.将datafram数据集转换为series数据
 ts = pd.Series(df['Count'].values, index=df.index)
 
 # 5.检验数据的平稳性并平稳化数据集
-# test_stationarity(ts)
-# ts_diff_1 = ts.diff(1)			# 对ts求一阶差分
-# ts_diff_1.dropna(inplace=True)  # 对一阶差分进行缺失值处理
+ts_diff_1 = ts.diff(1)			# 对ts求一阶差分
+ts_diff_1.dropna(inplace=True)  # 对一阶差分进行缺失值处理
 # test_stationarity(ts_diff_1)
-# plt.plot(ts, color='red', label='origin')
-# plt.plot(ts_diff_1, color='blue', label='diff1')
-# plt.legend(loc='best')
-# plt.show()
+plt.plot(ts, color='red', label='origin')
+plt.plot(ts_diff_1, color='blue', label='diff1')
+plt.legend(loc='best')
+plt.show()
+
+d = 1
+(p, q) = (5, 4)
+# (p, q) = (sm.tsa.arma_order_select_ic(ts, max_ar=7, max_ma=7, ic='aic')['aic_min_order'])
+print('p, d, q:', p, d, q)  # p, d, q: 5 2 4为目前最优值
 
 # 6.划分训练集和测试集(7:3的比例)
 seg = int(ts.count() * 0.9)
 train = ts[:seg]  # 六月之前为训练集
-test = ts[seg:-1]   # 七月开始为测试集
+test = ts[seg:-1]  # 七月开始为测试集
 
 # 6.1 可视化输出训练数据和测试数据
 # plt.plot(train, label='data_train')
@@ -44,7 +50,7 @@ test = ts[seg:-1]   # 七月开始为测试集
 # plt.show()
 
 # 7.通过ARIMA差分自回归移动平均模型对数据进行训练
-fit1 = sm.tsa.statespace.SARIMAX(train, order=(2, 1, 4), seasonal_order=(0, 1, 1, 7)).fit()
+fit1 = sm.tsa.statespace.SARIMAX(train, order=(p, d, q), seasonal_order=(p, d, q, 7)).fit()
 # fit1.save()
 predict_series = fit1.predict(start="2019-06-26", end="2019-7-14", dynamic=True)
 
